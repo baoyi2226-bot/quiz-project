@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>單字測驗</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #question { font-size: 20px; margin-bottom: 10px; }
+    .option { margin: 5px; padding: 8px; border: 1px solid #ccc; cursor: pointer; }
+    .option:hover { background-color: #f0f0f0; }
+    #feedback { margin-top: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>單字測驗</h2>
+  <div id="question"></div>
+  <div id="options"></div>
+  <div id="feedback"></div>
+  <button onclick="nextQuestion()">下一題</button>
+
+  <script>
+    fetch("WORD 1.json")
+      .then(response => response.json())
+      .then(data => {
+        const quizData = data;
+        let usedQuestions = [];
+
+        function loadQuestion() {
+          // 隨機挑一題，避免重複
+          if (usedQuestions.length === quizData.length) {
+            usedQuestions = []; // 全部出過就重置
+          }
+          let q;
+          do {
+            q = quizData[Math.floor(Math.random() * quizData.length)];
+          } while (usedQuestions.includes(q));
+          usedQuestions.push(q);
+
+          document.getElementById("question").textContent = `Word: ${q["英文單字"]}`;
+          const optionsDiv = document.getElementById("options");
+          optionsDiv.innerHTML = "";
+
+          // 建立選項陣列：正確答案 + 錯誤選項
+          const choices = [q["正確中文"], q["錯誤選項1"], q["錯誤選項2"]];
+
+          // 隨機打亂選項
+          choices.sort(() => Math.random() - 0.5);
+
+          choices.forEach(opt => {
+            const div = document.createElement("div");
+            div.className = "option";
+            div.textContent = opt;
+            div.onclick = () => checkAnswer(opt, q["正確中文"]);
+            optionsDiv.appendChild(div);
+          });
+
+          document.getElementById("feedback").textContent = "";
+        }
+
+        function checkAnswer(selected, correct) {
+          const feedback = document.getElementById("feedback");
+          if (selected === correct) {
+            feedback.textContent = "恭喜！Correct!";
+            feedback.style.color = "green";
+          } else {
+            feedback.textContent = "再加把勁！正確答案是：" + correct;
+            feedback.style.color = "red";
+          }
+        }
+
+        window.nextQuestion = function() {
+          loadQuestion();
+        }
+
+        loadQuestion();
+      });
+  </script>
+</body>
+</html>
