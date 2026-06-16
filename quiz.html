@@ -9,14 +9,26 @@
     .option { margin: 5px; padding: 8px; border: 1px solid #ccc; cursor: pointer; }
     .option:hover { background-color: #f0f0f0; }
     #feedback { margin-top: 10px; font-weight: bold; }
+    #stats { position: fixed; top: 10px; right: 20px; font-size: 14px; background: #f9f9f9; padding: 8px; border: 1px solid #ccc; }
+    #progressContainer { width: 200px; height: 15px; background: #ddd; margin-top: 5px; }
+    #progressBar { height: 100%; width: 0%; background: #4caf50; transition: width 0.3s, background-color 0.3s; }
+    #retryBtn { display: none; margin-top: 10px; }
+    #report { margin-top: 20px; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+    #wrongList { margin-top: 10px; }
   </style>
 </head>
 <body>
   <h2>單字測驗</h2>
+  <div id="stats">
+    <div id="statsText"></div>
+    <div id="progressContainer"><div id="progressBar"></div></div>
+    <button id="retryBtn" onclick="retryWrong()">錯題再戰</button>
+  </div>
   <div id="question"></div>
   <div id="options"></div>
   <div id="feedback"></div>
   <button onclick="nextQuestion()">下一題</button>
+  <div id="report"></div>
 
   <script>
     fetch("WORD 1.json")
@@ -24,15 +36,58 @@
       .then(data => {
         const quizData = data;
         let usedQuestions = [];
+        let wrongQuestions = [];
+        let totalQuestions = quizData.length;
+        let answeredCount = 0;
+        let correctCount = 0;
+        let currentSource = quizData; // 用來判斷目前是全題模式還是錯題模式
 
-        function loadQuestion() {
-          // 隨機挑一題，避免重複
-          if (usedQuestions.length === quizData.length) {
-            usedQuestions = []; // 全部出過就重置
+        function updateStats() {
+          const rate = answeredCount === 0 ? 0 : Math.round((correctCount / answeredCount) * 100);
+          document.getElementById("statsText").textContent =
+            `答題數: ${answeredCount} / 答對數: ${correctCount} / 答對率: ${rate}% / 總題數: ${totalQuestions}`;
+          
+          const progress = Math.round((answeredCount / currentSource.length) * 100);
+          const progressBar = document.getElementById("progressBar");
+          progressBar.style.width = progress + "%";
+
+          if (rate < 50) {
+            progressBar.style.backgroundColor = "red";
+          } else if (rate < 80) {
+            progressBar.style.backgroundColor = "orange";
+          } else {
+            progressBar.style.backgroundColor = "green";
           }
+        }
+
+        function showReport() {
+          const rate = answeredCount === 0 ? 0 : Math.round((correctCount / answeredCount) * 100);
+          let reportHTML = `<h3>成績報告</h3>`;
+          reportHTML += `<p>最終答對率：${rate}%</p>`;
+          if (wrongQuestions.length > 0) {
+            reportHTML += `<p>錯題清單：</p><ul id="wrongList">`;
+            wrongQuestions.forEach(q => {
+              reportHTML += `<li>${q["英文單字"]} → 正確答案：${q["正確中文"]}</li>`;
+            });
+            reportHTML += `</ul>`;
+            document.getElementById("retryBtn").style.display = "inline-block";
+          } else {
+            reportHTML += `<p>恭喜！所有題目都答對了！</p>`;
+            document.getElementById("retryBtn").style.display = "none";
+          }
+          document.getElementById("report").innerHTML = reportHTML;
+        }
+
+        function loadQuestion(source = quizData) {
+          currentSource = source;
+          if (usedQuestions.length === source.length) {
+            showReport();
+            return;
+          }
+
           let q;
           do {
-            q = quizData[Math.floor(Math.random() * quizData.length)];
+            q = source[Math.floor(Math.random() * source.length)];
           } while (usedQuestions.includes(q));
           usedQuestions.push(q);
 
@@ -40,36 +95,49 @@
           const optionsDiv = document.getElementById("options");
           optionsDiv.innerHTML = "";
 
-          // 建立選項陣列：正確答案 + 錯誤選項
           const choices = [q["正確中文"], q["錯誤選項1"], q["錯誤選項2"]];
-
-          // 隨機打亂選項
           choices.sort(() => Math.random() - 0.5);
 
           choices.forEach(opt => {
             const div = document.createElement("div");
             div.className = "option";
             div.textContent = opt;
-            div.onclick = () => checkAnswer(opt, q["正確中文"]);
+            div.onclick = () => checkAnswer(opt, q["正確中文"], q);
             optionsDiv.appendChild(div);
           });
 
           document.getElementById("feedback").textContent = "";
+          updateStats();
         }
 
-        function checkAnswer(selected, correct) {
+        function checkAnswer(selected, correct, questionObj) {
           const feedback = document.getElementById("feedback");
+          answeredCount++;
           if (selected === correct) {
             feedback.textContent = "恭喜！Correct!";
             feedback.style.color = "green";
+            correctCount++;
+            wrongQuestions = wrongQuestions.filter(q => q !== questionObj);
           } else {
             feedback.textContent = "再加把勁！正確答案是：" + correct;
             feedback.style.color = "red";
+            if (!wrongQuestions.includes(questionObj)) {
+              wrongQuestions.push(questionObj);
+            }
           }
+          updateStats();
         }
 
         window.nextQuestion = function() {
-          loadQuestion();
+          loadQuestion(currentSource);
+        }
+
+        window.retryWrong = function() {
+          usedQuestions = [];
+          answeredCount = 0;
+          correctCount = 0;
+          document.getElementById("report").innerHTML = "";
+          loadQuestion(wrongQuestions);
         }
 
         loadQuestion();
